@@ -6,8 +6,8 @@
 #include <ESP8266HTTPUpdateServer.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-const char* ssid = "ssid";
-const char* password = "password";
+const char* ssid = "kulkarni_home";
+const char* password = "coolpixl10";
 
 ESP8266WebServer server(80);    // Create a webserver object that listens for HTTP request on port 80
 ESP8266HTTPUpdateServer httpUpdater;
@@ -31,8 +31,8 @@ unsigned int handleRoot_counter=0; //for rebooting after 50 root pages
 // for rebooting after all variables low
 //int period_reb = 45000;
 //unsigned long time_last = 0;
-unsigned int i=0;
-
+unsigned int i = 0;
+byte ischange14 = LOW;  //latching light at night
 void handleRoot();              // function prototypes for HTTP handlers
 void handleNotFound();
 
@@ -40,7 +40,7 @@ WiFiUDP ntpUDP;
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
 // update interval (in milliseconds, can be changed using setUpdateInterval() ).
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 19800, 60000);
+NTPClient timeClient(ntpUDP, "asia.pool.ntp.org", 19800, 60000);
 
 
 void setup(void) {
@@ -152,6 +152,17 @@ void setup(void) {
   server.begin();                           // Actually start the server
   Serial.println("HTTP server started");
   timeClient.begin();
+  timeClient.update();
+ 
+  if ((timeClient.getHours()>=18)||(timeClient.getHours()<=6)){
+    digitalWrite(output14, HIGH);
+    output14State = "on";
+    ischange14=HIGH;
+  }else{
+    digitalWrite(output14, LOW);
+    output14State = "off";
+    ischange14=LOW;
+  }
   Serial.println("TimeClient started");
 //  time_last=millis();
 }
@@ -172,6 +183,19 @@ void loop(void) {
       break;
       }
   }
+  if ((timeClient.getHours()>=18)||(timeClient.getHours()<=6)){
+    if (ischange14==LOW){
+      digitalWrite(output14, HIGH);
+      output14State = "on";
+      ischange14=HIGH;
+    }
+  }else{
+    if (ischange14==HIGH){
+      digitalWrite(output14, LOW);
+      output14State = "off";
+      ischange14=LOW;
+    }
+  }
 //  if ((millis() > time_last + period_reb)&&(output16State=="off")&&(output14State=="off")&&(output12State=="off")&&(output13State=="off")){
 //    ESP.restart();
 //    }
@@ -180,7 +204,7 @@ void loop(void) {
   
 }
 
-void handleRoot() {                         // When URI / is requested, send a web page with a button to toggle the LED
+void handleRoot() {                         // When URL / is requested, send a web page with a button to toggle the LED
   handleRoot_counter=handleRoot_counter+1;
   if (handleRoot_counter>=50){
     Serial.println("restarting esp root more than 50");
@@ -206,7 +230,7 @@ void handleRoot() {                         // When URI / is requested, send a w
   }
 
   // Display current state, and ON/OFF buttons for GPIO 14
-  content += "<p>Button 2:GPIO 14 - State " + output14State + "</p>";
+  content += "<p>Button 2:GPIO 14 - State " + output14State + " (Will remain on from 6 to 6)</p>";
   // If the output14State is off, it displays the ON button
   if (output14State == "off") {
     content += "<p><a href=\"/14/on\"><button class=\"button\">ON</button></a></p>";
@@ -235,6 +259,8 @@ void handleRoot() {                         // When URI / is requested, send a w
   
   content += "<p>HandleRoot_counter =  " + String(handleRoot_counter) + "</p>";
   content += "<p>Signal =  " + String(WiFi.RSSI()) + "</p>";
+  content += "<p>Time =  " + String(timeClient.getFormattedTime()) + "</p>";
+  content += "<p>!!do not update filesystem!!</p>";
   content += "</body></html>";
   content += "";
   server.send(200, "text/html", content);
